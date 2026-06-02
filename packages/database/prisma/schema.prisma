@@ -1,0 +1,353 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlserver"
+  url      = env("DATABASE_URL")
+}
+
+model Role {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  description String?
+  isSystem    Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+  users       User[]
+
+  @@map("security_roles")
+}
+
+model User {
+  id               String    @id @default(uuid())
+  username         String    @unique
+  firstName        String
+  lastName         String
+  phoneNumber      String?   @unique
+  email            String?   @unique
+  passwordHash     String
+  roleId           String
+  role             Role      @relation(fields: [roleId], references: [id])
+  isActive         Boolean   @default(true)
+  isLocked         Boolean   @default(false)
+  twoFactorEnabled Boolean   @default(false)
+  lastLoginAt      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+
+  // Relations
+  resellersCreated Reseller[]    @relation("CreatedBy")
+  resellersValidated Reseller[]  @relation("ValidatedBy")
+  sitesCreated     ConstructionSite[] @relation("SiteCreatedBy")
+  fieldVisits      ResellerVisit[]
+  siteVisits       ConstructionSiteVisit[]
+  photosUploaded   ResellerPhoto[]
+  mobileDevices    MobileDevice[]
+  syncLogs         MobileSyncLogs[]
+  activityLogs     ActivityLog[]
+  sessions         Session[]
+
+  @@map("security_users")
+}
+
+model Region {
+  id        String    @id @default(uuid())
+  name      String    @unique
+  code      String?   @unique
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  cities    City[]
+  resellers Reseller[]
+  sites     ConstructionSite[]
+
+  @@map("geo_regions")
+}
+
+model City {
+  id        String    @id @default(uuid())
+  name      String
+  code      String?
+  regionId  String
+  region    Region    @relation(fields: [regionId], references: [id])
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  districts District[]
+  resellers Reseller[]
+  sites     ConstructionSite[]
+
+  @@unique([name, regionId])
+  @@map("geo_cities")
+}
+
+model District {
+  id        String    @id @default(uuid())
+  name      String
+  cityId    String
+  city      City      @relation(fields: [cityId], references: [id])
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  resellers Reseller[]
+  sites     ConstructionSite[]
+
+  @@unique([name, cityId])
+  @@map("geo_districts")
+}
+
+model ResellerStatus {
+  id          String     @id @default(uuid())
+  name        String     @unique
+  description String?
+  colorCode   String?
+  resellers   Reseller[]
+
+  @@map("sales_reseller_statuses")
+}
+
+model ResellerLevel {
+  id            String     @id @default(uuid())
+  name          String     @unique
+  description   String?
+  priorityOrder Int        @default(0)
+  resellers     Reseller[]
+
+  @@map("sales_reseller_levels")
+}
+
+model PotentialLevel {
+  id          String     @id @default(uuid())
+  name        String     @unique
+  scoreMin    Int?
+  scoreMax    Int?
+  resellers   Reseller[]
+
+  @@map("sales_potential_levels")
+}
+
+model Reseller {
+  id                String         @id @default(uuid())
+  resellerCode      String         @unique
+  businessName      String
+  ownerName         String
+  phoneNumber       String
+  alternativePhone  String?
+  email             String?
+  address           String?
+  
+  regionId          String
+  region            Region         @relation(fields: [regionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  cityId            String
+  city              City           @relation(fields: [cityId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  districtId        String?
+  district          District?      @relation(fields: [districtId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  
+  latitude          Float?
+  longitude         Float?
+  
+  statusId          String
+  status            ResellerStatus @relation(fields: [statusId], references: [id])
+  
+  resellerLevelId   String?
+  resellerLevel     ResellerLevel? @relation(fields: [resellerLevelId], references: [id])
+  
+  potentialLevelId  String?
+  potentialLevel    PotentialLevel? @relation(fields: [potentialLevelId], references: [id])
+  
+  isValidated       Boolean        @default(false)
+  validationDate    DateTime?
+  validatedBy       String?
+  validator         User?          @relation("ValidatedBy", fields: [validatedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  
+  notes             String?
+  
+  createdBy         String
+  creator           User           @relation("CreatedBy", fields: [createdBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  deletedAt         DateTime?
+
+  visits            ResellerVisit[]
+  photos            ResellerPhoto[]
+
+  @@map("sales_resellers")
+}
+
+model ResellerVisit {
+  id          String   @id @default(uuid())
+  resellerId  String
+  reseller    Reseller @relation(fields: [resellerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  agentId     String
+  agent       User     @relation(fields: [agentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  visitedAt   DateTime @default(now())
+  latitude    Float?
+  longitude   Float?
+  duration    Int?     // duration in minutes
+  type        String?  // ROUTINE, PROSPECTING, AUDIT
+  result      String?  // COMPLETED, FAILED, RESCHEDULED
+  notes       String?
+  metadata    String?  // JSON field for checklist
+
+  @@map("sales_reseller_visits")
+}
+
+model ResellerPhoto {
+  id          String   @id @default(uuid())
+  resellerId  String
+  reseller    Reseller @relation(fields: [resellerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  url         String
+  caption     String?
+  uploadedBy  String
+  uploader    User     @relation(fields: [uploadedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdAt   DateTime @default(now())
+
+  @@map("sales_reseller_photos")
+}
+
+model ProductCategory {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+
+  @@map("sales_product_categories")
+}
+
+model ConstructionSiteType {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  sites       ConstructionSite[]
+
+  @@map("btp_site_types")
+}
+
+model ConstructionSiteStatus {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  sites       ConstructionSite[]
+
+  @@map("btp_site_statuses")
+}
+
+model ConstructionSiteStage {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  sites       ConstructionSite[]
+
+  @@map("btp_site_stages")
+}
+
+model ConstructionSite {
+  id                String                 @id @default(uuid())
+  siteCode          String                 @unique
+  name              String
+  contractor        String?
+  phoneNumber       String?
+  
+  regionId          String
+  region            Region                 @relation(fields: [regionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  cityId            String
+  city              City                   @relation(fields: [cityId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  districtId        String?
+  district          District?              @relation(fields: [districtId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  fullAddress       String?
+  
+  latitude          Float?
+  longitude         Float?
+  
+  typeId            String
+  type              ConstructionSiteType   @relation(fields: [typeId], references: [id])
+  
+  statusId          String
+  status            ConstructionSiteStatus @relation(fields: [statusId], references: [id])
+  
+  stageId           String?
+  stage             ConstructionSiteStage? @relation(fields: [stageId], references: [id])
+  
+  estimatedBudget   Float?
+  actualSpending    Float?
+  
+  notes             String?
+  
+  createdBy         String
+  creator           User                   @relation("SiteCreatedBy", fields: [createdBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  deletedAt         DateTime?
+
+  visits            ConstructionSiteVisit[]
+
+  @@map("btp_construction_sites")
+}
+
+model ConstructionSiteVisit {
+  id          String           @id @default(uuid())
+  siteId      String
+  site        ConstructionSite @relation(fields: [siteId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  visitorId   String
+  visitor     User             @relation(fields: [visitorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  visitDate   DateTime         @default(now())
+  latitude    Float?
+  longitude   Float?
+  notes       String?
+  photos      String?          // JSON array of URLs
+
+  @@map("btp_site_visits")
+}
+
+model MobileDevice {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  deviceId    String   @unique
+  model       String?
+  osVersion   String?
+  appVersion  String?
+  lastSyncAt  DateTime?
+  createdAt   DateTime @default(now())
+
+  @@map("system_mobile_devices")
+}
+
+model MobileSyncLogs {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  syncType    String
+  status      String
+  details     String?
+  createdAt   DateTime @default(now())
+
+  @@map("system_sync_logs")
+}
+
+model ActivityLog {
+  id          String   @id @default(uuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+  action      String   // LOGIN, CREATE_RESELLER, etc.
+  tableName   String?
+  recordId    String?
+  createdAt   DateTime @default(now())
+
+  @@map("system_activity_logs")
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  refreshToken String   @unique
+  userAgent    String?
+  ipAddress    String?
+  isActive     Boolean  @default(true)
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  @@map("security_sessions")
+}

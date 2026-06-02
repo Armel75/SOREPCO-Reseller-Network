@@ -1,0 +1,12 @@
+{
+  "name": "SOREPCO Reseller Network",
+  "description": "Plateforme Enterprise Premium de géolocalisation et gestion du réseau de distribution SOREPCO SA.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
